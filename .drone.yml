@@ -1,0 +1,35 @@
+workspace:
+    base: "/src"
+    path: "."
+
+pipeline:
+    builder:
+        image: "alpine:3.8"
+        secrets: [ "alpine_key_private", "alpine_key_public" ]
+#        environment:
+#            - "JOBS=2"
+#            - "CMAKE_BUILD_PARALLEL_LEVEL=2"
+        commands:
+            - "apk update"
+            - "apk upgrade"
+            - "apk add alpine-sdk"
+            - "adduser -D builder"
+            - "echo \"builder ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers"
+            - "addgroup builder abuild"
+            - "mkdir -p /var/cache/distfiles"
+            - "chmod a+w /var/cache/distfiles"
+            - "mkdir /home/builder/.abuild"
+            - "echo 'PACKAGER_PRIVKEY=\"/home/builder/.abuild/aleksandr@zelenin.me.key\"' > \"/home/builder/.abuild/abuild.conf\""
+            - "echo \"$${ALPINE_KEY_PRIVATE}\" > \"/home/builder/.abuild/aleksandr@zelenin.me.key\""
+            - "echo \"$${ALPINE_KEY_PUBLIC}\" > \"/home/builder/.abuild/aleksandr@zelenin.me.pub\""
+            - "chown -R builder:builder /src"
+            - "su builder -c 'abuild -c -r'"
+            - "mkdir -p ./dist"
+            - "cp /home/builder/packages/$$(uname -m)/*.apk ./dist"
+    github-releaser:
+        image: "plugins/github-release"
+        secrets: [ "github_token" ]
+        files:
+            - "./dist/*"
+        when:
+            status: [ "success" ]
